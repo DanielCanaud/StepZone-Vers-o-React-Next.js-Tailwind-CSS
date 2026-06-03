@@ -21,33 +21,28 @@ interface CartContextData {
   addToCart: (product: Product) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
-  cartTotal: number;
   clearCart: () => void;
+  cartSubtotal: number;
+  cartDiscount: number;
+  cartTotal: number;
 }
 
-const CartContext = createContext<CartContextData>(
-  {} as CartContextData
-);
+const CartContext = createContext<CartContextData>({} as CartContextData);
 
-export const CartProvider = ({
+export function CartProvider({
   children,
 }: {
   children: ReactNode;
-}) => {
+}) {
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (typeof window === 'undefined') {
       return [];
     }
 
     try {
-      return (
-        getStorageItem<CartItem[]>('@StepZone:cart') || []
-      );
+      return getStorageItem<CartItem[]>('@StepZone:cart') ?? [];
     } catch (error) {
-      console.error(
-        'Erro ao recuperar o carrinho do storage:',
-        error
-      );
+      console.error('Erro ao recuperar o carrinho do storage:', error);
       return [];
     }
   });
@@ -56,10 +51,7 @@ export const CartProvider = ({
     try {
       setStorageItem('@StepZone:cart', cart);
     } catch (error) {
-      console.error(
-        'Erro ao salvar o carrinho no storage:',
-        error
-      );
+      console.error('Erro ao salvar o carrinho no storage:', error);
     }
   }, [cart]);
 
@@ -121,30 +113,49 @@ export const CartProvider = ({
     setCart([]);
   };
 
-  const cartTotal = useMemo(() => {
+  const cartSubtotal = useMemo(() => {
     return cart.reduce(
-      (total, item) =>
-        total + item.price * item.quantity,
+      (total, item) => total + item.price * item.quantity,
       0
     );
   }, [cart]);
 
+  const cartDiscount = useMemo(() => {
+    return cartSubtotal > 1000
+      ? cartSubtotal * 0.1
+      : 0;
+  }, [cartSubtotal]);
+
+  const cartTotal = useMemo(() => {
+    return cartSubtotal - cartDiscount;
+  }, [cartSubtotal, cartDiscount]);
+
+  const value = useMemo(
+    () => ({
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      cartSubtotal,
+      cartDiscount,
+      cartTotal,
+    }),
+    [
+      cart,
+      cartSubtotal,
+      cartDiscount,
+      cartTotal,
+    ]
+  );
+
   return (
-    <CartContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        cartTotal,
-        clearCart,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );
-};
+}
 
-export const useCart = () => {
+export function useCart() {
   return useContext(CartContext);
-};
+}
